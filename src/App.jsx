@@ -1,141 +1,43 @@
+import { useEffect, useState } from 'react';
 import './App.css'
-import { useEffect, useState } from 'react'
-import { supabase } from './supabase-client'
+import { Auth } from './components/Auth';
+import TaskManager from './components/TaskManager';
+import { supabase } from './supabase-client';
+import LogoutButton from './components/LogoutButton';
 
 function App() {
 
-  const [newTask, setNewTask] = useState({ title: "", description: "" });
-  const [tasks, setTasks] = useState([]);
-  const [newDescription, setNewDescription] = useState("");
+  const [session, setSession] = useState(null);
 
-  // READ
-  const fetchTasks = async () => {
-    const { error, data } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error reading task:", error.message);
-      return;
-    }
-
-    setTasks(data);
-  };
-
-  // DELETE
-  const deleteTask = async (taskId) => {
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-
-    if (error) {
-      console.error("Error deleting task:", error.message);
-    }
-
-    setNewTask({
-      title: "",
-      description: ""
-    });
-  };
-
-  // UPDATE
-  const updateTask = async (id) => {
-    const { error } = await supabase.from("tasks").update({ description: newDescription }).eq("id", id);
-
-    if (error) {
-      console.error("Error updating task:", error.message);
-    }
-  };
-
-  // CREATE
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const { error } = await supabase.from("tasks").insert(newTask).single();
-
-    if (error) {
-      console.error("Error inserting task:", error.message);
-    }
-
-    setNewTask({
-      title: "",
-      description: ""
-    });
-  };
+  async function fetchSession() {
+    const session = await supabase.auth.getSession();
+    console.log("Session:", session);
+    setSession(session.data.session);
+  }
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    fetchSession();
 
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    }
+  }, [])
 
   return (
-
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "1rem" }}>
-      <h2>Task Manager CRUD</h2>
-
-      {/* Form to add a new task */}
-      <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
-        <input
-          type="text"
-          placeholder="Task Title"
-          onChange={(e) =>
-            setNewTask((prev) => ({ ...prev, title: e.target.value }))
-          }
-          style={{ width: "100%", marginBottom: "0.5rem", padding: "0.5rem" }}
-        />
-        <textarea
-          placeholder="Task Description"
-          onChange={(e) =>
-            setNewTask((prev) => ({ ...prev, description: e.target.value }))
-          }
-          style={{ width: "100%", marginBottom: "0.5rem", padding: "0.5rem" }}
-        />
-
-        <input type="file" accept="image/*"
-        // onChange={handleFileChange} 
-        />
-
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
-          Add Task
-        </button>
-      </form>
-
-      {/* List of Tasks */}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {tasks.map((task, key) => (
-          <li
-            key={key}
-            style={{
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              padding: "1rem",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <div>
-              <h3>{task.title}</h3>
-              <p>{task.description}</p>
-              <img src={task.image_url} style={{ height: 70 }} />
-              <div>
-                <textarea
-                  placeholder="Updated description..."
-                  onChange={(e) => setNewDescription(e.target.value)}
-                />
-                <button
-                  style={{ padding: "0.5rem 1rem", marginRight: "0.5rem" }}
-                  onClick={() => updateTask(task.id)}
-                >
-                  Edit
-                </button>
-                <button
-                  style={{ padding: "0.5rem 1rem" }}
-                  onClick={() => deleteTask(task.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-
+    <>
+      {session ? (
+        <>
+          <LogoutButton />
+          <TaskManager session={session}/>
+        </>
+      ) : (
+        <Auth />
+      )}
+    </>
   )
 }
 
