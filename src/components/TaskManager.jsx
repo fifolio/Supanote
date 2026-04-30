@@ -6,6 +6,8 @@ function TaskManager({ session }) {
   const [newTask, setNewTask] = useState({ title: "", description: "" });
   const [tasks, setTasks] = useState([]);
   const [newDescription, setNewDescription] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
 
   // READ
   const fetchTasks = async () => {
@@ -42,21 +44,64 @@ function TaskManager({ session }) {
     }
   };
 
+  // UPLOAD IMAGE
+const uploadImage = async (file) => {
+  const filePath = `${session.user.email}-${Date.now()}_${file.name}`;
+
+  const { error } = await supabase
+    .storage
+    .from("tasks-images")
+    .upload(filePath, file);
+
+  if (error) {
+    console.error("Error uploading image:", error.message);
+    return null;
+  }
+
+  const { data } = supabase
+    .storage
+    .from("tasks-images")
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};  
+
   // CREATE
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    const { error } = await supabase.from("tasks").insert({ ...newTask, email: session.user.email }).single();
+  let uploadedImageUrl = null;
 
-    if (error) {
-      console.error("Error inserting task:", error.message);
+  if (imageFile) {
+    uploadedImageUrl = await uploadImage(imageFile);
+  }
+
+  const { error } = await supabase
+    .from("tasks")
+    .insert({
+      ...newTask,
+      email: session.user.email,
+      img_url: uploadedImageUrl,
+    })
+    .single();
+
+  if (error) {
+    console.error("Error inserting task:", error.message);
+  }
+
+  setNewTask({
+    title: "",
+    description: "",
+  });
+
+  setImageFile(null);
+};  
+
+  const handleFileChange = async (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setImageFile(e.target.files[0]);
     }
-
-    setNewTask({
-      title: "",
-      description: ""
-    });
-  };
+  }
 
   useEffect(() => {
     fetchTasks();
@@ -107,7 +152,7 @@ function TaskManager({ session }) {
         />
 
         <input type="file" accept="image/*"
-        // onChange={handleFileChange} 
+          onChange={handleFileChange}
         />
 
         <button type="submit" style={{ padding: "0.5rem 1rem" }}>
@@ -130,7 +175,7 @@ function TaskManager({ session }) {
             <div>
               <h3>{task.title}</h3>
               <p>{task.description}</p>
-              <img src={task.image_url} style={{ height: 70 }} />
+              <img src={task.img_url} style={{ height: 70 }} />
               <div>
                 <textarea
                   placeholder="Updated description..."
