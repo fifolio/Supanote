@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase-client'
 
-function TaskManager({session}) {
+function TaskManager({ session }) {
 
   const [newTask, setNewTask] = useState({ title: "", description: "" });
   const [tasks, setTasks] = useState([]);
@@ -46,7 +46,7 @@ function TaskManager({session}) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const { error } = await supabase.from("tasks").insert({...newTask, email: session.user.email}).single();
+    const { error } = await supabase.from("tasks").insert({ ...newTask, email: session.user.email }).single();
 
     if (error) {
       console.error("Error inserting task:", error.message);
@@ -60,6 +60,26 @@ function TaskManager({session}) {
 
   useEffect(() => {
     fetchTasks();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase.channel("tasks-channel");
+    channel
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        (payload) => {
+          const newTask = payload.new;
+          setTasks((prev) => [...prev, newTask]);
+        }
+      )
+      .subscribe((status) => {
+        console.log("Subscription: ", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
 
